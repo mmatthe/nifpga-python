@@ -16,10 +16,10 @@ class TestFixpointToBitarray(unittest.TestCase):
 
         result = F.toBoolArray(value)
         self.assertEqual(result.dtype, np.uint8)
-        nt.assert_array_equal(result, np.zeros(8))
+        nt.assert_array_equal(result, expected.astype(np.uint8))
 
     def test_integer_0(self):
-        self._check(8, 0, True, 0, np.zeros(0, dtype=np.uint8))
+        self._check(8, 0, True, 0, np.zeros(8))
 
 if __name__ == '__main__':
     unittest.main()
