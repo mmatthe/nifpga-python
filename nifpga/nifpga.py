@@ -100,7 +100,7 @@ class BoolArrayMappedDatatype(object):
 def _fixpointFromBoolArray(integer, fractional, signed, boolArray):
     num_bits = integer+fractional
     assert len(boolArray) == num_bits
-    vals = 2**np.arange(num_bits)[::-1]
+    vals = 2**np.arange(num_bits, dtype=np.uint64)[::-1]
     value = (boolArray * vals).sum()
     if signed and boolArray[0]:
         value = value - 2**num_bits
@@ -236,8 +236,6 @@ def _parseFixpoint(t, flattened):
 def parseFlattenedFixpoint(typeholder, flattened):
     typeStr = TYPE_TO_NUMBER[typeholder]
     pos = flattened.find(typeStr)
-    if pos <= 0:
-        import ipdb; ipdb.set_trace()
     assert pos > 0
     flattened = flattened[pos:]
     return _parseFixpoint(typeholder, flattened)

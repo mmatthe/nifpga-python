@@ -14,6 +14,7 @@ import ctypes
 from builtins import bytes
 from future.utils import iteritems
 from .nifpga import BoolArrayMappedDatatype
+import numpy as np
 
 
 class Session(object):
@@ -119,8 +120,12 @@ class Session(object):
                     self._registers[name] = array_register
 
             else:
-                register = _Register(self._session, self._nifpga,
-                                     bitfile_register, base_address_on_device)
+                if isinstance(bitfile_register.datatype, DataType):
+                    register = _Register(self._session, self._nifpga,
+                                         bitfile_register, base_address_on_device)
+                else:
+                    register = _BoolArrayMappedRegister(self._session, self._nifpga,
+                                                        bitfile_register, base_address_on_device)
                 if bitfile_register.is_internal():
                     self._internal_registers_dict[name] = register
                 else:
@@ -277,10 +282,18 @@ class _Register(object):
         self._datatype = bitfile_register.datatype
         self._name = bitfile_register.name
         self._session = session
-        self._write_func = nifpga["WriteArray%s" % self._datatype] if bitfile_register.is_array() \
-            else nifpga["Write%s" % self._datatype]
-        self._read_func = nifpga["ReadArray%s" % self._datatype] if bitfile_register.is_array() \
-            else nifpga["Read%s" % self._datatype]
+        self._nifpga = nifpga
+        if isinstance(self._datatype, DataType):
+            if bitfile_register.is_array():
+                self._write_func = nifpga["WriteArray%s" % self._datatype]
+                self._read_func = nifpga["ReadArray%s" % self._datatype]
+            else:
+                self._write_func = nifpga["Write%s" % self._datatype]
+                self._read_func = nifpga["Read%s" % self._datatype]
+        else:
+            self._write_func = None
+            self._read_func = None
+
         self._ctype_type = self._datatype._return_ctype()
         self._resource = bitfile_register.offset + base_address_on_device
         if bitfile_register.access_may_timeout():
@@ -300,6 +313,8 @@ class _Register(object):
         Args:
             data (DataType.value): The data to be written into the register
         """
+        if self._write_func is None:
+            import ipdb; ipdb.set_trace()
         self._write_func(self._session, self._resource, data)
 
     def read(self):
@@ -328,7 +343,7 @@ class _Register(object):
 
 class _BoolArrayMappedRegister(_Register):
     def __init__(self, session, nifpga, bitfile_register, base_address_on_device):
-        super(_BoolArrayMappedRegister(session, nifpga, bitfile_register, base_address_on_device))
+        super(_BoolArrayMappedRegister, self).__init__(session, nifpga, bitfile_register, base_address_on_device)
         assert isinstance(self._datatype, BoolArrayMappedDatatype)
 
     def getEmptyValue(self):
@@ -337,11 +352,11 @@ class _BoolArrayMappedRegister(_Register):
     def write(self, data):
         boolarray = self._datatype.toBoolArray(data)
         buf = self._ctype_type(*boolarray)
-        nifpga['WriteArrayBool'](self._session, self._resource, buf, len(boolarray))
+        self._nifpga['WriteArrayBool'](self._session, self._resource, buf, len(boolarray))
 
     def read(self):
         buf = self._ctype_type()
-        nifpga['ReadArrayBool'](self._session, self._resource, buf, len(buf))
+        self._nifpga['ReadArrayBool'](self._session, self._resource, buf, len(buf))
         boolarray = np.array(buf, dtype=np.uint8)
         return self._datatype.fromBoolArray(boolarray)
 
