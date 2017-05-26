@@ -13,6 +13,7 @@ from collections import namedtuple
 import ctypes
 from builtins import bytes
 from future.utils import iteritems
+from .nifpga import BoolArrayMappedDatatype
 
 
 class Session(object):
@@ -325,25 +326,25 @@ class _Register(object):
         indicator. """
         return self._datatype
 
-class _BitArrayMappedRegister(_Register):
+class _BoolArrayMappedRegister(_Register):
     def __init__(self, session, nifpga, bitfile_register, base_address_on_device):
-        super(_BitArrayMappedRegister(session, nifpga, bitfile_register, base_address_on_device))
-        self._emptyValue = bitfile_register.getEmptyValue()
+        super(_BoolArrayMappedRegister(session, nifpga, bitfile_register, base_address_on_device))
+        assert isinstance(self._datatype, BoolArrayMappedDatatype)
 
     def getEmptyValue(self):
-        return deepcopy(self._emptyValue)
+        return self._datatype.getEmptyValue()
 
     def write(self, data):
-        assert isinstance(data is type(self._emptyValue))
-        assert data.type_signature() == self._emptyValue.type_signature()
-        bitarray = data.toBitArray()
-        # write bitarray
+        boolarray = self._datatype.toBoolArray(data)
+        buf = self._ctype_type(*boolarray)
+        nifpga['WriteArrayBool'](self._session, self._resource, buf, len(boolarray))
 
     def read(self):
-        # read data
-        data = None
-        return self._emptyValue.fromBitarray(data)
-        pass
+        buf = self._ctype_type()
+        nifpga['ReadArrayBool'](self._session, self._resource, buf, len(buf))
+        boolarray = np.array(buf, dtype=np.uint8)
+        return self._datatype.fromBoolArray(boolarray)
+
 
 class _ArrayRegister(_Register):
     """

@@ -88,6 +88,9 @@ class BoolArrayMappedDatatype(object):
     def __str__(self):
         return "%s (%d bits)" % (self.name, self.num_bits)
 
+    def _return_ctype(self):
+        return ctypes.c_uint8 * self.num_bits
+
     def toBoolArray(self, data):
         raise NotImplementedError()
 
@@ -128,6 +131,9 @@ class FixpointDatatype(BoolArrayMappedDatatype):
         else:
             return "U%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
 
+    def getEmptyValue(self):
+        return 0
+
     def toBoolArray(self, data):
         return _fixpointToBoolArray(self._integer, self._fractional, self._signed, data)
 
@@ -144,6 +150,9 @@ class ComplexFixpointDatatype(BoolArrayMappedDatatype):
     def __str__(self):
         return "C%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
 
+    def getEmptyValue(self):
+        return 0+0j
+
     def toBoolArray(self, data):
         bits_real = _fixpointToBoolArray(self._integer, self._fractional, True, np.real(data))
         bits_imag = _fixpointToBoolArray(self._integer, self._fractional, True, np.imag(data))
@@ -156,6 +165,12 @@ class ComplexFixpointDatatype(BoolArrayMappedDatatype):
         imag = _fixpointFromBoolArray(self._integer, self._fractional, True, boolarray[half:])
         return real + 1j*imag
 
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
 
 class ClusterDatatype(BoolArrayMappedDatatype):
     def __init__(self, elements):
@@ -164,6 +179,36 @@ class ClusterDatatype(BoolArrayMappedDatatype):
 
     def __str__(self):
         return ("Cluster (%d bits)\n" % self.num_bits) + "\t\t".join("%10s : %s\n" % (n, t) for (n, t) in self._elements)
+
+    def getEmptyValue(self):
+        result = dotdict()
+        result['__types__'] = dotdict()
+        for name, typ in self._elements:
+            result[name] = typ.getEmptyValue()
+            result['__types__'][name] = str(typ)
+        return result
+
+    def toBoolArray(self, value):
+        input_fields = set(value.keys()) - set(["__types__"])
+        expected_fields = set([e[0] for e in self._elements])
+        if input_fields != expected_fields:
+            raise RuntimeError("Mismatching fields of cluster!\n\tGiven: %s\n\tExpected: %s" % (str(input_fields), str(expected_fields)))
+
+        parts = [typ.toBoolArray(value[name]) for name, typ in self._elements]
+        result = np.hstack(parts)
+        assert len(result) == self.num_bits
+        return result
+
+    def fromBoolArray(self, boolarray):
+        assert len(boolarray) == self.num_bits
+        index = 0
+        result = self.getEmptyValue()
+        for name, typ in self._elements:
+            part = boolarray[index:(index+typ.num_bits)]
+            index = index + typ.num_bits
+            result[name] = typ.fromBoolArray(part)
+        return result
+
 
 def _parseFixpoint(t, flattened):
     assert flattened[:4] == TYPE_TO_NUMBER[t]

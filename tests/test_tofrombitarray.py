@@ -93,6 +93,46 @@ class TestComplexFixpointToBoolArray(unittest.TestCase):
         self._check(2,2,np.array([0,1,0,0,0,0,0,0]), 1)
         self._check(2,2,np.array([0,1,0,0,0,0,1,0]), 1+0.5j)
 
+class TestClusterDatatype(unittest.TestCase):
+    def test_containsElements(self):
+        elements = [("e1", FixpointDatatype("",4,4,True)),
+                    ("e2", FixpointDatatype("",8,4,False)),
+                    ("e3", ComplexFixpointDatatype("",2,3))]
+        C = ClusterDatatype(elements).getEmptyValue()
+        C.e1 = 5
+        self.assertEqual(C['e1'], 5)
+        C.e2
+        C.e3
+
+    def test_toBoolArray(self):
+        elements = [("e1", FixpointDatatype("",4,4,True)),
+                    ("e2", FixpointDatatype("",8,0,False)),
+                    ("e3", ComplexFixpointDatatype("",2,3))]
+        C = ClusterDatatype(elements)
+        V = C.getEmptyValue()
+        V.e1 = 1
+        V.e2 = 128
+        V.e3 = 1-1j
+        boolarray = C.toBoolArray(V)
+        expected = np.hstack([np.array([0,0,0,1,0,0,0,0]),
+                              np.array([1,0,0,0,0,0,0,0]),
+                              np.array([0,1,0,0,0,1,1,0,0,0])]).astype(np.uint8)
+        nt.assert_array_equal(boolarray, expected)
+
+    def test_fromBoolArray(self):
+        elements = [("e1", FixpointDatatype("",4,4,True)),
+                    ("e2", FixpointDatatype("",8,0,False)),
+                    ("e3", ComplexFixpointDatatype("",2,3))]
+        C = ClusterDatatype(elements)
+        boolarray = np.hstack([np.array([0,0,0,1,0,0,0,0]),
+                              np.array([1,0,0,0,0,0,0,0]),
+                              np.array([0,1,0,0,0,1,1,0,0,0])]).astype(np.uint8)
+        V = C.fromBoolArray(boolarray)
+        self.assertEqual(V.e1, 1)
+        self.assertEqual(V.e2, 128)
+        self.assertEqual(V.e3, 1-1j)
+
+
 
 if __name__ == '__main__':
     unittest.main()
