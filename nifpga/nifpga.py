@@ -94,18 +94,25 @@ class BoolArrayMappedDatatype(object):
     def fromBoolArray(self, boolArray):
         raise NotImplementedError()
 
-def _fixpointFromBoolArray(integer, fractional, signed, boolarray):
+def _fixpointFromBoolArray(integer, fractional, signed, boolArray):
     num_bits = integer+fractional
     assert len(boolArray) == num_bits
     vals = 2**np.arange(num_bits)[::-1]
     value = (boolArray * vals).sum()
-    if self._signed and boolArray[0]:
+    if signed and boolArray[0]:
         value = value - 2**num_bits
     if fractional > 0:
         return float(value)  / 2**(fractional)
     else:
         return value  // 2**(fractional)
 
+def _fixpointToBoolArray(integer, fractional, signed, value):
+    if value < 0 and not signed:
+        raise RuntimeError("Unsigned value cannot create negative number")
+    num_bits = integer + fractional
+    as_int = int(np.round(value * 2**fractional))
+    bits = np.array([as_int & (1 << (b)) for b in range(num_bits)[::-1]])
+    return (bits != 0).astype(np.uint8)
 
 
 class FixpointDatatype(BoolArrayMappedDatatype):
@@ -122,11 +129,7 @@ class FixpointDatatype(BoolArrayMappedDatatype):
             return "U%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
 
     def toBoolArray(self, data):
-        if data < 0 and not self._signed:
-            raise RuntimeError("Unsigned value cannot create negative number")
-        as_int = int(np.round(data * 2**self._fractional))
-        bits = np.array([as_int & (1 << (b)) for b in range(self.num_bits)[::-1]])
-        return (bits != 0).astype(np.uint8)
+        return _fixpointToBoolArray(self._integer, self._fractional, self._signed, data)
 
     def fromBoolArray(self, boolArray):
         return _fixpointFromBoolArray(self._integer, self._fractional, self._signed, boolArray)
@@ -142,16 +145,17 @@ class ComplexFixpointDatatype(BoolArrayMappedDatatype):
         return "C%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
 
     def toBoolArray(self, data):
-        as_int_real = int(np.round(np.real(data) * 2**self._fractional))
-        as_int_imag = int(np.round(np.imag(data) * 2**self._fractional))
-        bits_real = np.array([as_int_real & (1 << (b)) for b in range(self.num_bits/2)[::-1]])
-        bits_imag = np.array([as_int_imag & (1 << (b)) for b in range(self.num_bits/2)[::-1]])
-
+        bits_real = _fixpointToBoolArray(self._integer, self._fractional, True, np.real(data))
+        bits_imag = _fixpointToBoolArray(self._integer, self._fractional, True, np.imag(data))
         both = np.hstack([bits_real, bits_imag])
-        return (both != 0).astype(np.uint8)
+        return both
 
     def fromBoolArray(self, boolarray):
-        pass
+        half = self.num_bits // 2
+        real = _fixpointFromBoolArray(self._integer, self._fractional, True, boolarray[:half])
+        imag = _fixpointFromBoolArray(self._integer, self._fractional, True, boolarray[half:])
+        return real + 1j*imag
+
 
 class ClusterDatatype(BoolArrayMappedDatatype):
     def __init__(self, elements):

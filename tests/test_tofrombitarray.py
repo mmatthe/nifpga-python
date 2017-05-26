@@ -91,6 +91,7 @@ class TestComplexFixpointToBoolArray(unittest.TestCase):
 
     def test_integer(self):
         self._check(2,2,np.array([0,1,0,0,0,0,0,0]), 1)
+        self._check(2,2,np.array([0,1,0,0,0,0,1,0]), 1+0.5j)
 
 
 if __name__ == '__main__':
