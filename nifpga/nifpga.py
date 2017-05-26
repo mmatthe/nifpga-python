@@ -9,6 +9,7 @@ from .statuscheckedlibrary import (NamedArgtype,
                                    LibraryNotFoundError)
 import ctypes
 from enum import Enum  # Third-party enum34
+from collections import namedtuple
 
 
 class DataType(Enum):
@@ -46,6 +47,115 @@ class DataType(Enum):
             DataType.Dbl: ctypes.c_double,
         }
         return _datatype_ctype[self]
+
+NUMBER_TO_TYPES = {
+    '4001' : 'I8',
+    '4002' : 'I16',
+    '4003' : 'I32',
+    '4004' : 'I64',
+    '4005' : 'U8',
+    '4006' : 'U16',
+    '4007' : 'U32',
+    '4008' : 'U64',
+    '4021' : 'Bool',
+    '405F' : 'FXP',
+    '405E' : 'CFXP',
+    }
+TYPE_TO_NUMBER = dict((b,a) for (a,b) in NUMBER_TO_TYPES.items())
+TYPE_TO_NUMBER["BOOLEAN"] = "4021"
+TYPE_TO_BITS = {
+    'I8' : 8,
+    'I16' : 16,
+    'I32' : 32,
+    'I64' : 64,
+    'U8' : 8,
+    'U16' : 16,
+    'U32' : 32,
+    'U64' : 64,
+    'BOOLEAN' : 1,
+    }
+BoolArrayMappedDatatype = namedtuple("BoolArrayMappedDatatype", "name, num_bits")
+# class BoolArrayMappedDataType(object):
+#     num_bits = None
+#     name = None
+
+#     def __init__(self, name, num_bits):
+#         self.num_bits = num_bits
+#         self.name = name
+
+#     def toBitarray(self):
+#         raise NotImplementedError()
+
+#     def fromBitarray(self, data):
+#         raise NotImplementedError()
+
+
+def _parseFixpoint(t, flattened):
+    assert flattened[:4] == TYPE_TO_NUMBER[t]
+
+    signed = int(flattened[20:24])
+    fullStr = flattened[8:12]
+    full = int(fullStr, 16)
+    frontStr = flattened[16:20]
+    front = int(frontStr, 16)
+    if front > 2**15-1:
+        front = front - 2**16
+    if signed:
+        name = "I%d.%d" % (front, full-front)
+    else:
+        name = "U%d.%d" % (front, full-front)
+
+    if t == 'FXP':
+        num_bits = full
+    elif t == 'CFXP':
+        num_bits = 2*full
+    else:
+        raise RuntimeError("Unknown fixpoint type: %s" % t)
+    return BoolArrayMappedDatatype(name=name, num_bits=num_bits)
+
+def parseFlattenedFixpoint(typeholder, flattened):
+    typeStr = TYPE_TO_NUMBER[typeholder]
+    pos = flattened.find(typeStr)
+    if pos <= 0:
+        import ipdb; ipdb.set_trace()
+    assert pos > 0
+    flattened = flattened[pos:]
+    return _parseFixpoint(typeholder, flattened)
+
+def _parseCluster(types, flattened):
+    result = []
+    for p, t in enumerate(types):
+        typeStr = TYPE_TO_NUMBER[t]
+        pos = flattened.find(typeStr)
+        if pos == -1:
+            raise RuntimeError("Could not find type %s at %dth position!" % (t, p))
+        flattened = flattened[pos:]
+        if t in ["FXP", "CFXP"]:
+            result.append(_parseFixpoint(t, flattened))
+        else:
+            result.append(BoolArrayMappedDatatype(t, TYPE_TO_BITS[t]))
+        flattened = flattened[len(typeStr):]
+    return result
+
+def parseFlattenedCluster(reg_xml):
+    flattened = reg_xml.find("FlattenedType").text
+    typelist = reg_xml.find("Datatype").getchildren()[0].find("TypeList")
+    types = []
+    names = []
+    for C in typelist.getchildren():
+        type = C.tag.upper()
+        types.append(type)
+        name = C.find("Name").text
+        names.append(name)
+    typeDetails = _parseCluster(types, flattened)
+    bitCount = sum(x.num_bits for x in typeDetails)
+    bitCount_fromXML = int(reg_xml.find("SizeInBits").text)
+    assert bitCount == bitCount_fromXML, "Bitcount %d not equal expected value %d for cluster %s" % (bitCount, bitCount_fromXML, reg_xml.find("Name").text)
+    elements = zip(names, typeDetails)
+    return elements
+
+
+
 
 
 _SessionType = ctypes.c_uint32

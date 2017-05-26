@@ -325,6 +325,25 @@ class _Register(object):
         indicator. """
         return self._datatype
 
+class _BitArrayMappedRegister(_Register):
+    def __init__(self, session, nifpga, bitfile_register, base_address_on_device):
+        super(_BitArrayMappedRegister(session, nifpga, bitfile_register, base_address_on_device))
+        self._emptyValue = bitfile_register.getEmptyValue()
+
+    def getEmptyValue(self):
+        return deepcopy(self._emptyValue)
+
+    def write(self, data):
+        assert isinstance(data is type(self._emptyValue))
+        assert data.type_signature() == self._emptyValue.type_signature()
+        bitarray = data.toBitArray()
+        # write bitarray
+
+    def read(self):
+        # read data
+        data = None
+        return self._emptyValue.fromBitarray(data)
+        pass
 
 class _ArrayRegister(_Register):
     """

@@ -1,7 +1,7 @@
 import os
 import warnings
 from xml.etree.ElementTree import ElementTree
-from nifpga import DataType
+from nifpga import DataType, parseFlattenedFixpoint, parseFlattenedCluster
 
 
 class Bitfile(object):
@@ -110,6 +110,7 @@ class Register(object):
         self._access_may_timeout = True if reg_xml.find("AccessMayTimeout").text.lower() == 'true' else False
         self._internal = True if reg_xml.find("Internal").text.lower() == 'true' else False
         datatype = reg_xml.find("Datatype")
+        flattened = reg_xml.find("FlattenedType").text
         if datatype.find("Array") is not None:
             self._is_array = True
             typeholder = datatype.find("Array").find("Type")
@@ -124,7 +125,17 @@ class Register(object):
                 if str(datatype).lower() in child.tag.lower():
                     self._datatype = datatype
             if self._datatype is None:
-                warnings.warn("Register '%s' has unsupported type" % self._name)
+                typeName = child.tag.upper()
+                if self._is_array:
+                    warnings.warn("Array for type %s not supported!" % typeName)
+                    continue
+
+                if typeName in ['FXP', 'CFXP']:
+                    self._datatype = parseFlattenedFixpoint(typeName, flattened)
+                elif typeName == 'CLUSTER':
+                    self._datatype = parseFlattenedCluster(reg_xml)
+                else:
+                    warnings.warn("Register '%s' has unsupported type" % self._name)
 
     def __len__(self):
         """ Returns the number of elements in this register. """
@@ -160,10 +171,13 @@ class Register(object):
         return self._internal
 
     def __str__(self):
-        return ("Register '%s'\n" % self._name +
-                "\tType: %s\n" % self._datatype +
-                "\tNum Elements: %d\n" % len(self) +
-                "\tOffset: %d\n" % self._offset)
+        try:
+            return ("Register '%s'\n" % self._name +
+                    "\tType: %s\n" % str(self._datatype) +
+                    "\tNum Elements: %d\n" % len(self) +
+                    "\tOffset: %d\n" % self._offset)
+        except TypeError as E:
+            import ipdb; ipdb.set_trace()
 
 
 class Fifo(object):
