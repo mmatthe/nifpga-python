@@ -10,6 +10,8 @@ from .statuscheckedlibrary import (NamedArgtype,
 import ctypes
 from enum import Enum  # Third-party enum34
 from collections import namedtuple
+import numpy as np
+
 
 
 class DataType(Enum):
@@ -83,12 +85,48 @@ class BoolArrayMappedDatatype(object):
         self.num_bits = num_bits
         self.name = name
 
-    def toBitarray(self):
+    def __str__(self):
+        return "%s (%d bits)" % (self.name, self.num_bits)
+
+    def toBoolArray(self, data):
         raise NotImplementedError()
 
-    def fromBitarray(self, data):
+    def fromBoolArray(self, boolArray):
         raise NotImplementedError()
 
+class FixpointDatatype(BoolArrayMappedDatatype):
+    def __init__(self, name, integer, fractional, signed):
+        super(FixpointDatatype, self).__init__(name, integer+fractional)
+        self._integer = integer
+        self._fractional = fractional
+        self._signed = signed
+
+    def __str__(self):
+        if self._signed:
+            return "I%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
+        else:
+            return "U%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
+
+    def toBoolArray(self, data):
+        return np.zeros(self.num_bits, dtype=np.uint8)
+
+class ComplexFixpointDatatype(BoolArrayMappedDatatype):
+    def __init__(self, name, integer, fractional):
+        super(ComplexFixpointDatatype, self).__init__(name, 2*(integer+fractional))
+        self._integer = integer
+        self._fractional = fractional
+
+    def __str__(self):
+        return "C%d.%d (%d bits)" % (self._integer, self._fractional, self.num_bits)
+
+
+class ClusterDatatype(BoolArrayMappedDatatype):
+    def __init__(self, elements):
+        self._elements = elements
+        self.num_bits = sum(e[1].num_bits for e in elements)
+
+    def __str__(self):
+        return ("Cluster (%d bits)\n" % self.num_bits) + "\t\t".join("%10s : %s\n" % (n, t) for (n, t) in self._elements)
 
 def _parseFixpoint(t, flattened):
     assert flattened[:4] == TYPE_TO_NUMBER[t]
@@ -106,12 +144,12 @@ def _parseFixpoint(t, flattened):
         name = "U%d.%d" % (front, full-front)
 
     if t == 'FXP':
-        num_bits = full
+        return FixpointDatatype(name=name, integer=front, fractional=full-front, signed=signed)
     elif t == 'CFXP':
-        num_bits = 2*full
+        return ComplexFixpointDatatype(name=name, integer=front, fractional=full-front)
     else:
         raise RuntimeError("Unknown fixpoint type: %s" % t)
-    return BoolArrayMappedDatatype(name=name, num_bits=num_bits)
+
 
 def parseFlattenedFixpoint(typeholder, flattened):
     typeStr = TYPE_TO_NUMBER[typeholder]
@@ -132,8 +170,11 @@ def _parseCluster(types, flattened):
         flattened = flattened[pos:]
         if t in ["FXP", "CFXP"]:
             result.append(_parseFixpoint(t, flattened))
+        elif t.upper() == 'BOOLEAN':
+            result.append(FixpointDatatype(name='Boolean', integer=1, fractional=0,signed=False))
         else:
-            result.append(BoolArrayMappedDatatype(t, TYPE_TO_BITS[t]))
+            signed = t[0] == 'I'
+            result.append(FixpointDatatype(name='t', integer=TYPE_TO_BITS[t], fractional=0, signed=signed))
         flattened = flattened[len(typeStr):]
     return result
 
@@ -152,7 +193,7 @@ def parseFlattenedCluster(reg_xml):
     bitCount_fromXML = int(reg_xml.find("SizeInBits").text)
     assert bitCount == bitCount_fromXML, "Bitcount %d not equal expected value %d for cluster %s" % (bitCount, bitCount_fromXML, reg_xml.find("Name").text)
     elements = zip(names, typeDetails)
-    return elements
+    return ClusterDatatype(elements)
 
 
 
