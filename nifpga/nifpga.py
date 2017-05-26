@@ -74,20 +74,20 @@ TYPE_TO_BITS = {
     'U64' : 64,
     'BOOLEAN' : 1,
     }
-BoolArrayMappedDatatype = namedtuple("BoolArrayMappedDatatype", "name, num_bits")
-# class BoolArrayMappedDataType(object):
-#     num_bits = None
-#     name = None
+# BoolArrayMappedDatatype = namedtuple("BoolArrayMappedDatatype", "name, num_bits")
+class BoolArrayMappedDatatype(object):
+    num_bits = None
+    name = None
 
-#     def __init__(self, name, num_bits):
-#         self.num_bits = num_bits
-#         self.name = name
+    def __init__(self, name, num_bits):
+        self.num_bits = num_bits
+        self.name = name
 
-#     def toBitarray(self):
-#         raise NotImplementedError()
+    def toBitarray(self):
+        raise NotImplementedError()
 
-#     def fromBitarray(self, data):
-#         raise NotImplementedError()
+    def fromBitarray(self, data):
+        raise NotImplementedError()
 
 
 def _parseFixpoint(t, flattened):
