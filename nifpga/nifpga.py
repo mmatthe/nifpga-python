@@ -272,7 +272,7 @@ def parseFlattenedCluster(reg_xml):
     bitCount = sum(x.num_bits for x in typeDetails)
     bitCount_fromXML = int(reg_xml.find("SizeInBits").text)
     assert bitCount == bitCount_fromXML, "Bitcount %d not equal expected value %d for cluster %s" % (bitCount, bitCount_fromXML, reg_xml.find("Name").text)
-    elements = zip(names, typeDetails)
+    elements = list(zip(names, typeDetails))
     return ClusterDatatype(elements)
 
 

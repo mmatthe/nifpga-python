@@ -417,6 +417,7 @@ class _ArrayRegister(_Register):
         return [bool(elem) if self._datatype is DataType.Bool else elem for elem in buf]
 
 
+ReadValues = namedtuple("ReadValues", ["data", "elements_remaining"])
 class _FIFO(object):
     """ _FIFO is a private class that is a wrapper for the logic that
     associated with a FIFO.
@@ -527,7 +528,6 @@ class _FIFO(object):
                         timeout_ms,
                         elements_remaining)
         data = [bool(elem) if self._datatype is DataType.Bool else elem for elem in buf]
-        ReadValues = namedtuple("ReadValues", ["data", "elements_remaining"])
         return ReadValues(data=data,
                           elements_remaining=elements_remaining.value)
 
