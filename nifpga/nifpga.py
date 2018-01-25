@@ -211,7 +211,10 @@ class ClusterDatatype(BoolArrayMappedDatatype):
 
 
 def _parseFixpoint(t, flattened):
-    assert flattened[:4] == TYPE_TO_NUMBER[t]
+    try:
+        assert flattened[:4] == TYPE_TO_NUMBER[t]
+    except KeyError:
+        raise RuntimeError("type %s not supported" % t)
 
     signed = int(flattened[20:24])
     fullStr = flattened[8:12]
@@ -243,7 +246,10 @@ def parseFlattenedFixpoint(typeholder, flattened):
 def _parseCluster(types, flattened):
     result = []
     for p, t in enumerate(types):
-        typeStr = TYPE_TO_NUMBER[t]
+        try:
+            typeStr = TYPE_TO_NUMBER[t]
+        except KeyError:
+            raise RuntimeError("Type %s not supported in cluster" % t)
         pos = flattened.find(typeStr)
         if pos == -1:
             raise RuntimeError("Could not find type %s at %dth position!" % (t, p))

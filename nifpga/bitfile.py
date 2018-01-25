@@ -23,11 +23,14 @@ class Bitfile(object):
         self._base_address_on_device = int(nifpga.find("BaseAddressOnDevice").text)
         self._registers = {}
         for reg_xml in tree.find("VI").find("RegisterList"):
-            reg = Register(reg_xml)
-            if reg.datatype is not None:
-                assert reg.name not in self._registers, \
-                    "One or more registers have the same name '%s', this is not supported" % reg.name
-                self._registers[reg.name] = reg
+            try:
+                reg = Register(reg_xml)
+                if reg.datatype is not None:
+                    assert reg.name not in self._registers, \
+                        "One or more registers have the same name '%s', this is not supported" % reg.name
+                    self._registers[reg.name] = reg
+            except RuntimeError as E:
+                print ("Cannot read register %s: %s" % (reg_xml, E))
 
         self._fifos = {}
         for channel_xml in nifpga.find("DmaChannelAllocationList"):
